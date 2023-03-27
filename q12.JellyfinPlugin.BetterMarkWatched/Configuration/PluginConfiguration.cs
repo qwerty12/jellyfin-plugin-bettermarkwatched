@@ -2,56 +2,23 @@ using MediaBrowser.Model.Plugins;
 
 namespace q12.JellyfinPlugin.BetterMarkWatched.Configuration;
 
-/// <summary>
-/// The configuration options.
-/// </summary>
-public enum SomeOptions
-{
-    /// <summary>
-    /// Option one.
-    /// </summary>
-    OneOption,
-
-    /// <summary>
-    /// Second option.
-    /// </summary>
-    AnotherOption
-}
-
-/// <summary>
-/// Plugin configuration.
-/// </summary>
 public class PluginConfiguration : BasePluginConfiguration
 {
-    /// <summary>
-    /// Initializes a new instance of the <see cref="PluginConfiguration"/> class.
-    /// </summary>
     public PluginConfiguration()
     {
-        // set default options here
-        Options = SomeOptions.AnotherOption;
-        TrueFalseSetting = true;
-        AnInteger = 2;
-        AString = "string";
+        MarkResumableItemUnplayedOnPlay = true;
+        UpdateLastPlayedAndPlayCountOnPlayCompletion = false;
     }
 
     /// <summary>
-    /// Gets or sets a value indicating whether some true or false setting is enabled..
+    /// Gets or sets a value indicating whether to mark a resumable item being played as unplayed when the play starts.
     /// </summary>
-    public bool TrueFalseSetting { get; set; }
+    /// <value><c>true</c> if this resumable item should be marked unplayed; otherwise, <c>false</c> item play state will not change when play starts.</value>
+    public bool MarkResumableItemUnplayedOnPlay { get; set; }
 
     /// <summary>
-    /// Gets or sets an integer setting.
+    /// Gets or sets a value indicating whether to set LastPlayed time and increment playcount only when played to completion, or on every play start.
     /// </summary>
-    public int AnInteger { get; set; }
-
-    /// <summary>
-    /// Gets or sets a string setting.
-    /// </summary>
-    public string AString { get; set; }
-
-    /// <summary>
-    /// Gets or sets an enum option.
-    /// </summary>
-    public SomeOptions Options { get; set; }
+    /// <value><c>true</c> if playcount and lastplayed update on play completion; otherwise, <c>false</c> playcount and lastplayed update on play start.</value>
+    public bool UpdateLastPlayedAndPlayCountOnPlayCompletion { get; set; }
 }
