@@ -50,7 +50,7 @@ internal sealed class RuntimePatcher : IDisposable
 [HarmonyPatch(typeof(UserDataManager), nameof(UserDataManager.UpdatePlayState))]
 internal static class Patch_UserDataManager_UpdatePlayState
 {
-    private static void Postfix(bool __result, BaseItem item, UserItemData data)
+    private static void Postfix(bool __result, UserItemData data)
     {
 #if DEBUG
         BetterMarkWatchedPlugin.Instance!.Logger!.LogInformation("Patch_UserDataManager_UpdatePlayState::Postfix");
@@ -65,17 +65,12 @@ internal static class Patch_UserDataManager_UpdatePlayState
 [HarmonyPatch(typeof(SessionManager), nameof(SessionManager.OnPlaybackStart), typeof(User), typeof(BaseItem))]
 internal static class Patch_SessionManager_OnPlaybackStart
 {
-    private static readonly AccessTools.FieldRef<SessionManager, IUserDataManager> _userDataManagerRef =
-        AccessTools.FieldRefAccess<SessionManager, IUserDataManager>("_userDataManager");
-
-    private static bool Prefix(SessionManager __instance, User user, BaseItem item)
+    private static bool Prefix(IUserDataManager ____userDataManager, User user, BaseItem item)
     {
 #if DEBUG
         BetterMarkWatchedPlugin.Instance!.Logger!.LogInformation("Patch_SessionManager_OnPlaybackStart::Prefix");
 #endif
-        var _userDataManager = _userDataManagerRef(__instance);
-
-        var data = _userDataManager.GetUserData(user, item);
+        var data = ____userDataManager.GetUserData(user, item);
 
         if (!BetterMarkWatchedPlugin.Instance!.Configuration.UpdateLastPlayedAndPlayCountOnPlayCompletion)
         {
@@ -99,7 +94,7 @@ internal static class Patch_SessionManager_OnPlaybackStart
             data.Played = false;
         }
 
-        _userDataManager.SaveUserData(user, item, data, UserDataSaveReason.PlaybackStart, CancellationToken.None);
+        ____userDataManager.SaveUserData(user, item, data, UserDataSaveReason.PlaybackStart, CancellationToken.None);
 
         return false;
     }
@@ -108,25 +103,20 @@ internal static class Patch_SessionManager_OnPlaybackStart
 [HarmonyPatch(typeof(SessionManager), nameof(SessionManager.OnPlaybackStopped), typeof(User), typeof(BaseItem), typeof(long), typeof(bool))]
 internal static class Patch_SessionManager_OnPlaybackStopped
 {
-    private static readonly AccessTools.FieldRef<SessionManager, IUserDataManager> _userDataManagerRef =
-        AccessTools.FieldRefAccess<SessionManager, IUserDataManager>("_userDataManager");
-
-    private static bool Prefix(SessionManager __instance, ref bool __result, User user, BaseItem item, long? positionTicks, bool playbackFailed)
+    private static bool Prefix(ref bool __result, IUserDataManager ____userDataManager, User user, BaseItem item, long? positionTicks, bool playbackFailed)
     {
 #if DEBUG
         BetterMarkWatchedPlugin.Instance!.Logger!.LogInformation("Patch_SessionManager_OnPlaybackStopped::Prefix");
 #endif
-        var _userDataManager = _userDataManagerRef(__instance);
-
         bool playedToCompletion = false;
 
         if (!playbackFailed)
         {
-            var data = _userDataManager.GetUserData(user, item);
+            var data = ____userDataManager.GetUserData(user, item);
 
             if (positionTicks.HasValue)
             {
-                playedToCompletion = _userDataManager.UpdatePlayState(item, data, positionTicks.Value);
+                playedToCompletion = ____userDataManager.UpdatePlayState(item, data, positionTicks.Value);
                 if (playedToCompletion && BetterMarkWatchedPlugin.Instance!.Configuration.UpdateLastPlayedAndPlayCountOnPlayCompletion)
                 {
                     data.PlayCount++;
@@ -142,7 +132,7 @@ internal static class Patch_SessionManager_OnPlaybackStopped
                 playedToCompletion = true;
             }
 
-            _userDataManager.SaveUserData(user, item, data, UserDataSaveReason.PlaybackFinished, CancellationToken.None);
+            ____userDataManager.SaveUserData(user, item, data, UserDataSaveReason.PlaybackFinished, CancellationToken.None);
         }
 
         __result = playedToCompletion;
