@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>Template</title>
+    <title>Better Mark Watched</title>
 </head>
 <body>
-    <div id="TemplateConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-select,emby-checkbox">
+    <div id="BetterMarkWatchedConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-select,emby-checkbox">
         <div data-role="content">
             <div class="content-primary">
-                <form id="TemplateConfigForm">
+                <form id="BetterMarkWatchedConfigForm">
                     <div class="checkboxContainer checkboxContainer-withDescription">
                         <label>
                             <input is="emby-checkbox" type="checkbox" id="chkMarkResumableItemUnplayedOnPlay" />
@@ -32,27 +32,27 @@
             </div>
         </div>
         <script type="text/javascript">
-            var TemplateConfig = {
+            var BetterMarkWatchedConfig = {
                 pluginUniqueId: 'd14e432b-2bc8-4ebf-bc41-a9082cbba0ef'
             };
 
-            document.querySelector('#TemplateConfigPage')
+            document.querySelector('#BetterMarkWatchedConfigPage')
                 .addEventListener('pageshow', function() {
                     Dashboard.showLoadingMsg();
-                    ApiClient.getPluginConfiguration(TemplateConfig.pluginUniqueId).then(function (config) {
+                    ApiClient.getPluginConfiguration(BetterMarkWatchedConfig.pluginUniqueId).then(function (config) {
                         document.querySelector('#chkMarkResumableItemUnplayedOnPlay').checked = config.MarkResumableItemUnplayedOnPlay || false;
                         document.querySelector('#chkUpdateLastPlayedAndPlayCountOnPlayCompletion').checked = config.UpdateLastPlayedAndPlayCountOnPlayCompletion || false;
                         Dashboard.hideLoadingMsg();
                     });
                 });
 
-            document.querySelector('#TemplateConfigForm')
+            document.querySelector('#BetterMarkWatchedConfigForm')
                 .addEventListener('submit', function(e) {
                 Dashboard.showLoadingMsg();
-                ApiClient.getPluginConfiguration(TemplateConfig.pluginUniqueId).then(function (config) {
+                ApiClient.getPluginConfiguration(BetterMarkWatchedConfig.pluginUniqueId).then(function (config) {
                     config.MarkResumableItemUnplayedOnPlay = document.querySelector('#chkMarkResumableItemUnplayedOnPlay').checked;
                     config.UpdateLastPlayedAndPlayCountOnPlayCompletion = document.querySelector('#chkUpdateLastPlayedAndPlayCountOnPlayCompletion').checked;
-                    ApiClient.updatePluginConfiguration(TemplateConfig.pluginUniqueId, config).then(function (result) {
+                    ApiClient.updatePluginConfiguration(BetterMarkWatchedConfig.pluginUniqueId, config).then(function (result) {
                         Dashboard.processPluginConfigurationUpdateResult(result);
                     });
                 });
