@@ -14,26 +14,12 @@ namespace q12.JellyfinPlugin.BetterMarkWatched;
 internal sealed class RuntimePatcher : IDisposable
 {
     private Harmony? _harmony;
+    private static readonly string? _harmonyId = typeof(RuntimePatcher).Namespace;
 
     public RuntimePatcher()
     {
-        _harmony = new Harmony(GetType().Namespace);
+        _harmony = new Harmony(_harmonyId);
         _harmony.PatchAll();
-    }
-
-    private void Release()
-    {
-        if (_harmony is not null)
-        {
-            _harmony.UnpatchAll();
-            _harmony = null;
-        }
-    }
-
-    public void Dispose()
-    {
-        Release();
-        GC.SuppressFinalize(this);
     }
 
     /*
@@ -45,6 +31,23 @@ internal sealed class RuntimePatcher : IDisposable
      * but, alas, future Jellyfin versions will be implementing in-process restarting
      */
     ~RuntimePatcher() => Release();
+
+    private void Release()
+    {
+        if (_harmony is null)
+        {
+            return;
+        }
+
+        _harmony.UnpatchAll(_harmonyId);
+        _harmony = null;
+    }
+
+    public void Dispose()
+    {
+        Release();
+        GC.SuppressFinalize(this);
+    }
 }
 
 [HarmonyPatch(typeof(UserDataManager), nameof(UserDataManager.UpdatePlayState))]
