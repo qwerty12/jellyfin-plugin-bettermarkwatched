@@ -1,0 +1,182 @@
+From 66536585f824bc8bd2efdbce174a7b4c74b8f883 Mon Sep 17 00:00:00 2001
+From: SenorSmartyPants <<same as From, just in lowercase>@gmail.com>
+Date: Tue, 16 Aug 2022 13:20:52 -0500
+Subject: [PATCH 1/2] Add new settings MarkResumableItemUnplayedOnPlay and
+ UpdateLastPlayedAndPlayCountOnPlayCompletion
+
+---
+ .../Session/SessionManager.cs                 | 29 +++++++++++++++----
+ .../Configuration/ServerConfiguration.cs      | 12 ++++++++
+ 2 files changed, 36 insertions(+), 5 deletions(-)
+
+diff --git a/Emby.Server.Implementations/Session/SessionManager.cs b/Emby.Server.Implementations/Session/SessionManager.cs
+index d25376297fd..3dbe01bba33 100644
+--- a/Emby.Server.Implementations/Session/SessionManager.cs
++++ b/Emby.Server.Implementations/Session/SessionManager.cs
+@@ -19,6 +19,7 @@
+ using MediaBrowser.Common.Extensions;
+ using MediaBrowser.Controller;
+ using MediaBrowser.Controller.Authentication;
++using MediaBrowser.Controller.Configuration;
+ using MediaBrowser.Controller.Devices;
+ using MediaBrowser.Controller.Drawing;
+ using MediaBrowser.Controller.Dto;
+@@ -56,6 +57,7 @@ public class SessionManager : ISessionManager, IDisposable
+         private readonly IMediaSourceManager _mediaSourceManager;
+         private readonly IServerApplicationHost _appHost;
+         private readonly IDeviceManager _deviceManager;
++        private readonly IServerConfigurationManager _config;
+ 
+         /// <summary>
+         /// The active connections.
+@@ -78,7 +80,8 @@ public class SessionManager : ISessionManager, IDisposable
+             IImageProcessor imageProcessor,
+             IServerApplicationHost appHost,
+             IDeviceManager deviceManager,
+-            IMediaSourceManager mediaSourceManager)
++            IMediaSourceManager mediaSourceManager,
++            IServerConfigurationManager config)
+         {
+             _logger = logger;
+             _eventManager = eventManager;
+@@ -91,6 +94,7 @@ public class SessionManager : ISessionManager, IDisposable
+             _appHost = appHost;
+             _deviceManager = deviceManager;
+             _mediaSourceManager = mediaSourceManager;
++            _config = config;
+ 
+             _deviceManager.DeviceOptionsUpdated += OnDeviceManagerDeviceOptionsUpdated;
+         }
+@@ -731,12 +735,22 @@ private void OnPlaybackStart(User user, BaseItem item)
+         {
+             var data = _userDataManager.GetUserData(user, item);
+ 
+-            data.PlayCount++;
+-            data.LastPlayedDate = DateTime.UtcNow;
++            if (!_config.Configuration.UpdateLastPlayedAndPlayCountOnPlayCompletion)
++            {
++                data.PlayCount++;
++                data.LastPlayedDate = DateTime.UtcNow;
++            }
+ 
+-            if (item.SupportsPlayedStatus && !item.SupportsPositionTicksResume)
++            if (item.SupportsPlayedStatus)
+             {
+-                data.Played = true;
++                if (!item.SupportsPositionTicksResume)
++                {
++                    data.Played = true;
++                }
++                else if (_config.Configuration.MarkResumableItemUnplayedOnPlay)
++                {
++                    data.Played = false;
++                }
+             }
+             else
+             {
+@@ -1017,6 +1031,11 @@ private bool OnPlaybackStopped(User user, BaseItem item, long? positionTicks, bo
+                 if (positionTicks.HasValue)
+                 {
+                     playedToCompletion = _userDataManager.UpdatePlayState(item, data, positionTicks.Value);
++                    if (playedToCompletion && _config.Configuration.UpdateLastPlayedAndPlayCountOnPlayCompletion)
++                    {
++                        data.PlayCount++;
++                        data.LastPlayedDate = DateTime.UtcNow;
++                    }
+                 }
+                 else
+                 {
+diff --git a/MediaBrowser.Model/Configuration/ServerConfiguration.cs b/MediaBrowser.Model/Configuration/ServerConfiguration.cs
+index e61b896b9d2..7b88fc25f9b 100644
+--- a/MediaBrowser.Model/Configuration/ServerConfiguration.cs
++++ b/MediaBrowser.Model/Configuration/ServerConfiguration.cs
+@@ -127,6 +127,18 @@ public ServerConfiguration()
+         /// <value>The sort remove words.</value>
+         public string[] SortRemoveWords { get; set; } = new[] { "the", "a", "an" };
+ 
++        /// <summary>
++        /// Gets or sets a value indicating whether to mark a resumable item being played as unplayed when the play starts.
++        /// </summary>
++        /// <value><c>true</c> if this resumable item should be marked unplayed; otherwise, <c>false</c> item play state will not change when play starts.</value>
++        public bool MarkResumableItemUnplayedOnPlay { get; set; } = true;
++
++        /// <summary>
++        /// Gets or sets a value indicating whether to set LastPlayed time and increment playcount only when played to completion, or on every play start.
++        /// </summary>
++        /// <value><c>true</c> if playcount and lastplayed update on play completion; otherwise, <c>false</c> playcount and lastplayed update on play start.</value>
++        public bool UpdateLastPlayedAndPlayCountOnPlayCompletion { get; set; } = false;
++
+         /// <summary>
+         /// Gets or sets the minimum percentage of an item that must be played in order for playstate to be updated.
+         /// </summary>
+
+From 450d09a726d2f115875310679a3d573503f6ac5e Mon Sep 17 00:00:00 2001
+From: SenorSmartyPants <<same as From, just in lowercase>@gmail.com>
+Date: Sun, 13 Nov 2022 12:54:04 -0600
+Subject: [PATCH 2/2] Set LastPlayedDate when PlayedToCompletion in
+ UserDataManager.UpdatePlayedState
+
+Last played date should be set once item is marked as played. Was previously only setting on stop event, when using new settings.
+---
+ .../Library/UserDataManager.cs                | 21 +++++++++++++++----
+ 1 file changed, 17 insertions(+), 4 deletions(-)
+
+diff --git a/Emby.Server.Implementations/Library/UserDataManager.cs b/Emby.Server.Implementations/Library/UserDataManager.cs
+index 3810a76c455..dcd76561080 100644
+--- a/Emby.Server.Implementations/Library/UserDataManager.cs
++++ b/Emby.Server.Implementations/Library/UserDataManager.cs
+@@ -212,6 +212,15 @@ private UserItemDataDto GetUserItemDataDto(UserItemData data)
+             };
+         }
+ 
++        private void SetPlayed(UserItemData data)
++        {
++            data.Played = true;
++            if (_config.Configuration.UpdateLastPlayedAndPlayCountOnPlayCompletion)
++            {
++                data.LastPlayedDate = DateTime.UtcNow;
++            }
++        }
++
+         /// <inheritdoc />
+         public bool UpdatePlayState(BaseItem item, UserItemData data, long? reportedPositionTicks)
+         {
+@@ -236,7 +245,8 @@ public bool UpdatePlayState(BaseItem item, UserItemData data, long? reportedPosi
+                 {
+                     // mark as completed close to the end
+                     positionTicks = 0;
+-                    data.Played = playedToCompletion = true;
++                    playedToCompletion = true;
++                    SetPlayed(data);
+                 }
+                 else
+                 {
+@@ -245,7 +255,8 @@ public bool UpdatePlayState(BaseItem item, UserItemData data, long? reportedPosi
+                     if (durationSeconds < _config.Configuration.MinResumeDurationSeconds)
+                     {
+                         positionTicks = 0;
+-                        data.Played = playedToCompletion = true;
++                        playedToCompletion = true;
++                        SetPlayed(data);
+                     }
+                 }
+             }
+@@ -263,14 +274,16 @@ public bool UpdatePlayState(BaseItem item, UserItemData data, long? reportedPosi
+                 {
+                     // mark as completed close to the end
+                     positionTicks = 0;
+-                    data.Played = playedToCompletion = true;
++                    playedToCompletion = true;
++                    SetPlayed(data);
+                 }
+             }
+             else if (!hasRuntime)
+             {
+                 // If we don't know the runtime we'll just have to assume it was fully played
+-                data.Played = playedToCompletion = true;
+                 positionTicks = 0;
++                playedToCompletion = true;
++                SetPlayed(data);
+             }
+ 
+             if (!item.SupportsPlayedStatus)
