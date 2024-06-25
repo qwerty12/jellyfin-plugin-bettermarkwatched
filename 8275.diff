@@ -1,8 +1,8 @@
 diff --git a/Emby.Server.Implementations/Library/UserDataManager.cs b/Emby.Server.Implementations/Library/UserDataManager.cs
-index 3810a76c455..dcd76561080 100644
+index 8beeb8041..b24df07c8 100644
 --- a/Emby.Server.Implementations/Library/UserDataManager.cs
 +++ b/Emby.Server.Implementations/Library/UserDataManager.cs
-@@ -212,6 +212,15 @@ private UserItemDataDto GetUserItemDataDto(UserItemData data)
+@@ -250,6 +250,15 @@ namespace Emby.Server.Implementations.Library
              };
          }
  
@@ -18,7 +18,7 @@ index 3810a76c455..dcd76561080 100644
          /// <inheritdoc />
          public bool UpdatePlayState(BaseItem item, UserItemData data, long? reportedPositionTicks)
          {
-@@ -236,7 +245,8 @@ public bool UpdatePlayState(BaseItem item, UserItemData data, long? reportedPosi
+@@ -274,7 +283,8 @@ namespace Emby.Server.Implementations.Library
                  {
                      // mark as completed close to the end
                      positionTicks = 0;
@@ -28,7 +28,7 @@ index 3810a76c455..dcd76561080 100644
                  }
                  else
                  {
-@@ -245,7 +255,8 @@ public bool UpdatePlayState(BaseItem item, UserItemData data, long? reportedPosi
+@@ -283,7 +293,8 @@ namespace Emby.Server.Implementations.Library
                      if (durationSeconds < _config.Configuration.MinResumeDurationSeconds)
                      {
                          positionTicks = 0;
@@ -38,7 +38,7 @@ index 3810a76c455..dcd76561080 100644
                      }
                  }
              }
-@@ -263,14 +274,16 @@ public bool UpdatePlayState(BaseItem item, UserItemData data, long? reportedPosi
+@@ -301,14 +312,16 @@ namespace Emby.Server.Implementations.Library
                  {
                      // mark as completed close to the end
                      positionTicks = 0;
@@ -58,44 +58,10 @@ index 3810a76c455..dcd76561080 100644
  
              if (!item.SupportsPlayedStatus)
 diff --git a/Emby.Server.Implementations/Session/SessionManager.cs b/Emby.Server.Implementations/Session/SessionManager.cs
-index d25376297fd..3dbe01bba33 100644
+index 3dda5fdee..49abcc3d6 100644
 --- a/Emby.Server.Implementations/Session/SessionManager.cs
 +++ b/Emby.Server.Implementations/Session/SessionManager.cs
-@@ -19,6 +19,7 @@
- using MediaBrowser.Common.Extensions;
- using MediaBrowser.Controller;
- using MediaBrowser.Controller.Authentication;
-+using MediaBrowser.Controller.Configuration;
- using MediaBrowser.Controller.Devices;
- using MediaBrowser.Controller.Drawing;
- using MediaBrowser.Controller.Dto;
-@@ -56,6 +57,7 @@ public class SessionManager : ISessionManager, IDisposable
-         private readonly IMediaSourceManager _mediaSourceManager;
-         private readonly IServerApplicationHost _appHost;
-         private readonly IDeviceManager _deviceManager;
-+        private readonly IServerConfigurationManager _config;
- 
-         /// <summary>
-         /// The active connections.
-@@ -78,7 +80,8 @@ public class SessionManager : ISessionManager, IDisposable
-             IImageProcessor imageProcessor,
-             IServerApplicationHost appHost,
-             IDeviceManager deviceManager,
--            IMediaSourceManager mediaSourceManager)
-+            IMediaSourceManager mediaSourceManager,
-+            IServerConfigurationManager config)
-         {
-             _logger = logger;
-             _eventManager = eventManager;
-@@ -91,6 +94,7 @@ public class SessionManager : ISessionManager, IDisposable
-             _appHost = appHost;
-             _deviceManager = deviceManager;
-             _mediaSourceManager = mediaSourceManager;
-+            _config = config;
- 
-             _deviceManager.DeviceOptionsUpdated += OnDeviceManagerDeviceOptionsUpdated;
-         }
-@@ -731,12 +735,22 @@ private void OnPlaybackStart(User user, BaseItem item)
+@@ -744,12 +744,22 @@ namespace Emby.Server.Implementations.Session
          {
              var data = _userDataManager.GetUserData(user, item);
  
@@ -122,38 +88,38 @@ index d25376297fd..3dbe01bba33 100644
              }
              else
              {
-@@ -1017,6 +1031,11 @@ private bool OnPlaybackStopped(User user, BaseItem item, long? positionTicks, bo
-                 if (positionTicks.HasValue)
-                 {
-                     playedToCompletion = _userDataManager.UpdatePlayState(item, data, positionTicks.Value);
-+                    if (playedToCompletion && _config.Configuration.UpdateLastPlayedAndPlayCountOnPlayCompletion)
-+                    {
-+                        data.PlayCount++;
-+                        data.LastPlayedDate = DateTime.UtcNow;
-+                    }
-                 }
-                 else
-                 {
+@@ -1025,6 +1035,11 @@ namespace Emby.Server.Implementations.Session
+             if (positionTicks.HasValue)
+             {
+                 playedToCompletion = _userDataManager.UpdatePlayState(item, data, positionTicks.Value);
++                if (playedToCompletion && _config.Configuration.UpdateLastPlayedAndPlayCountOnPlayCompletion)
++                {
++                    data.PlayCount++;
++                    data.LastPlayedDate = DateTime.UtcNow;
++                }
+             }
+             else
+             {
 diff --git a/MediaBrowser.Model/Configuration/ServerConfiguration.cs b/MediaBrowser.Model/Configuration/ServerConfiguration.cs
-index e61b896b9d2..7b88fc25f9b 100644
+index 52f7e53b8..ac0747847 100644
 --- a/MediaBrowser.Model/Configuration/ServerConfiguration.cs
 +++ b/MediaBrowser.Model/Configuration/ServerConfiguration.cs
-@@ -127,6 +127,18 @@ public ServerConfiguration()
-         /// <value>The sort remove words.</value>
-         public string[] SortRemoveWords { get; set; } = new[] { "the", "a", "an" };
+@@ -128,6 +128,18 @@ public class ServerConfiguration : BaseApplicationConfiguration
+     /// <value>The sort remove words.</value>
+     public string[] SortRemoveWords { get; set; } = new[] { "the", "a", "an" };
  
-+        /// <summary>
-+        /// Gets or sets a value indicating whether to mark a resumable item being played as unplayed when the play starts.
-+        /// </summary>
-+        /// <value><c>true</c> if this resumable item should be marked unplayed; otherwise, <c>false</c> item play state will not change when play starts.</value>
-+        public bool MarkResumableItemUnplayedOnPlay { get; set; } = true;
++    /// <summary>
++    /// Gets or sets a value indicating whether to mark a resumable item being played as unplayed when the play starts.
++    /// </summary>
++    /// <value><c>true</c> if this resumable item should be marked unplayed; otherwise, <c>false</c> item play state will not change when play starts.</value>
++    public bool MarkResumableItemUnplayedOnPlay { get; set; } = true;
 +
-+        /// <summary>
-+        /// Gets or sets a value indicating whether to set LastPlayed time and increment playcount only when played to completion, or on every play start.
-+        /// </summary>
-+        /// <value><c>true</c> if playcount and lastplayed update on play completion; otherwise, <c>false</c> playcount and lastplayed update on play start.</value>
-+        public bool UpdateLastPlayedAndPlayCountOnPlayCompletion { get; set; } = false;
++    /// <summary>
++    /// Gets or sets a value indicating whether to set LastPlayed time and increment playcount only when played to completion, or on every play start.
++    /// </summary>
++    /// <value><c>true</c> if playcount and lastplayed update on play completion; otherwise, <c>false</c> playcount and lastplayed update on play start.</value>
++    public bool UpdateLastPlayedAndPlayCountOnPlayCompletion { get; set; } = false;
 +
-         /// <summary>
-         /// Gets or sets the minimum percentage of an item that must be played in order for playstate to be updated.
-         /// </summary>
+     /// <summary>
+     /// Gets or sets the minimum percentage of an item that must be played in order for playstate to be updated.
+     /// </summary>
