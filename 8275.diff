@@ -1,8 +1,8 @@
 diff --git a/Emby.Server.Implementations/Library/UserDataManager.cs b/Emby.Server.Implementations/Library/UserDataManager.cs
-index 8beeb8041..b24df07c8 100644
+index 72c8d7a..ee54097 100644
 --- a/Emby.Server.Implementations/Library/UserDataManager.cs
 +++ b/Emby.Server.Implementations/Library/UserDataManager.cs
-@@ -250,6 +250,15 @@ namespace Emby.Server.Implementations.Library
+@@ -288,6 +288,15 @@ namespace Emby.Server.Implementations.Library
              };
          }
  
@@ -18,7 +18,7 @@ index 8beeb8041..b24df07c8 100644
          /// <inheritdoc />
          public bool UpdatePlayState(BaseItem item, UserItemData data, long? reportedPositionTicks)
          {
-@@ -274,7 +283,8 @@ namespace Emby.Server.Implementations.Library
+@@ -312,7 +321,8 @@ namespace Emby.Server.Implementations.Library
                  {
                      // mark as completed close to the end
                      positionTicks = 0;
@@ -28,7 +28,7 @@ index 8beeb8041..b24df07c8 100644
                  }
                  else
                  {
-@@ -283,7 +293,8 @@ namespace Emby.Server.Implementations.Library
+@@ -321,7 +331,8 @@ namespace Emby.Server.Implementations.Library
                      if (durationSeconds < _config.Configuration.MinResumeDurationSeconds)
                      {
                          positionTicks = 0;
@@ -38,7 +38,7 @@ index 8beeb8041..b24df07c8 100644
                      }
                  }
              }
-@@ -301,14 +312,16 @@ namespace Emby.Server.Implementations.Library
+@@ -339,14 +350,16 @@ namespace Emby.Server.Implementations.Library
                  {
                      // mark as completed close to the end
                      positionTicks = 0;
@@ -58,10 +58,10 @@ index 8beeb8041..b24df07c8 100644
  
              if (!item.SupportsPlayedStatus)
 diff --git a/Emby.Server.Implementations/Session/SessionManager.cs b/Emby.Server.Implementations/Session/SessionManager.cs
-index 3dda5fdee..49abcc3d6 100644
+index cf2ca04..d140a08 100644
 --- a/Emby.Server.Implementations/Session/SessionManager.cs
 +++ b/Emby.Server.Implementations/Session/SessionManager.cs
-@@ -744,12 +744,22 @@ namespace Emby.Server.Implementations.Session
+@@ -815,12 +815,22 @@ namespace Emby.Server.Implementations.Session
          {
              var data = _userDataManager.GetUserData(user, item);
  
@@ -88,7 +88,7 @@ index 3dda5fdee..49abcc3d6 100644
              }
              else
              {
-@@ -1025,6 +1035,11 @@ namespace Emby.Server.Implementations.Session
+@@ -1124,6 +1134,11 @@ namespace Emby.Server.Implementations.Session
              if (positionTicks.HasValue)
              {
                  playedToCompletion = _userDataManager.UpdatePlayState(item, data, positionTicks.Value);
@@ -101,10 +101,10 @@ index 3dda5fdee..49abcc3d6 100644
              else
              {
 diff --git a/MediaBrowser.Model/Configuration/ServerConfiguration.cs b/MediaBrowser.Model/Configuration/ServerConfiguration.cs
-index 52f7e53b8..ac0747847 100644
+index a58c01c..401ff13 100644
 --- a/MediaBrowser.Model/Configuration/ServerConfiguration.cs
 +++ b/MediaBrowser.Model/Configuration/ServerConfiguration.cs
-@@ -128,6 +128,18 @@ public class ServerConfiguration : BaseApplicationConfiguration
+@@ -126,6 +126,18 @@ public class ServerConfiguration : BaseApplicationConfiguration
      /// <value>The sort remove words.</value>
      public string[] SortRemoveWords { get; set; } = new[] { "the", "a", "an" };
  

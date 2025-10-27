@@ -35,14 +35,14 @@ public sealed class BetterMarkWatchedPlugin : BasePlugin<PluginConfiguration>, I
 
     public IEnumerable<PluginPageInfo> GetPages()
     {
-        return new[]
-        {
+        return
+        [
             new PluginPageInfo
             {
                 Name = this.Name,
                 EmbeddedResourcePath = string.Format(CultureInfo.InvariantCulture, "{0}.Configuration.configPage.html", GetType().Namespace),
-            },
-        };
+            }
+        ];
     }
 
     public ILogger<BetterMarkWatchedPlugin> Logger { get; }

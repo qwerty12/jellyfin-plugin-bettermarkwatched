@@ -3,33 +3,27 @@ using System.Threading;
 using Emby.Server.Implementations.Library;
 using Emby.Server.Implementations.Session;
 using HarmonyLib;
-using Jellyfin.Data.Entities;
+using Jellyfin.Database.Implementations.Entities;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Entities;
+#if DEBUG
 using Microsoft.Extensions.Logging;
+#endif
 
 namespace q12.JellyfinPlugin.BetterMarkWatched;
 
 internal sealed class RuntimePatcher : IDisposable
 {
+    private const string HarmonyId = "q12.JellyfinPlugin.BetterMarkWatched.RuntimePatcher";
     private Harmony? _harmony;
-    private static readonly string? _harmonyId = typeof(RuntimePatcher).Namespace;
 
     public RuntimePatcher()
     {
-        _harmony = new Harmony(_harmonyId);
+        _harmony = new Harmony(HarmonyId);
         _harmony.PatchAll();
     }
 
-    /*
-     * I'd prefer to keep this DLL permanently loaded instead with tricks like:
-         * GET_MODULE_HANDLE_EX_FLAG_PIN
-         * storing an instance of its corresponding AssemblyLoadContext in this plugin
-         * creating a circular reference between this and the BetterMarkWatchedPlugin
-         * somehow attempting "object resurrection"
-     * but, alas, future Jellyfin versions will be implementing in-process restarting
-     */
     ~RuntimePatcher() => Release();
 
     private void Release()
@@ -39,14 +33,14 @@ internal sealed class RuntimePatcher : IDisposable
             return;
         }
 
-        _harmony.UnpatchAll(_harmonyId);
+        _harmony.UnpatchAll(HarmonyId);
         _harmony = null;
     }
 
     public void Dispose()
     {
-        Release();
         GC.SuppressFinalize(this);
+        Release();
     }
 }
 
@@ -70,12 +64,19 @@ internal static class Patch_SessionManager_OnPlaybackStart
 {
     private static bool Prefix(IUserDataManager ____userDataManager, User user, BaseItem item)
     {
+        var UpdateLastPlayedAndPlayCountOnPlayCompletion = BetterMarkWatchedPlugin.Instance!.Configuration.UpdateLastPlayedAndPlayCountOnPlayCompletion;
+        var MarkResumableItemUnplayedOnPlay = BetterMarkWatchedPlugin.Instance!.Configuration.MarkResumableItemUnplayedOnPlay;
+        if (!UpdateLastPlayedAndPlayCountOnPlayCompletion && MarkResumableItemUnplayedOnPlay)
+        {
+            return true;
+        }
 #if DEBUG
         BetterMarkWatchedPlugin.Instance!.Logger!.LogInformation("Patch_SessionManager_OnPlaybackStart::Prefix");
 #endif
+
         var data = ____userDataManager.GetUserData(user, item);
 
-        if (!BetterMarkWatchedPlugin.Instance!.Configuration.UpdateLastPlayedAndPlayCountOnPlayCompletion)
+        if (!UpdateLastPlayedAndPlayCountOnPlayCompletion)
         {
             data.PlayCount++;
             data.LastPlayedDate = DateTime.UtcNow;
@@ -87,7 +88,7 @@ internal static class Patch_SessionManager_OnPlaybackStart
             {
                 data.Played = true;
             }
-            else if (BetterMarkWatchedPlugin.Instance!.Configuration.MarkResumableItemUnplayedOnPlay)
+            else if (MarkResumableItemUnplayedOnPlay)
             {
                 data.Played = false;
             }
@@ -108,9 +109,14 @@ internal static class Patch_SessionManager_OnPlaybackStopped
 {
     private static bool Prefix(ref bool __result, IUserDataManager ____userDataManager, User user, BaseItem item, long? positionTicks, bool playbackFailed)
     {
+        if (!BetterMarkWatchedPlugin.Instance!.Configuration.UpdateLastPlayedAndPlayCountOnPlayCompletion)
+        {
+            return true;
+        }
 #if DEBUG
         BetterMarkWatchedPlugin.Instance!.Logger!.LogInformation("Patch_SessionManager_OnPlaybackStopped::Prefix");
 #endif
+
         bool playedToCompletion = false;
 
         if (!playbackFailed)
@@ -119,11 +125,20 @@ internal static class Patch_SessionManager_OnPlaybackStopped
 
             if (positionTicks.HasValue)
             {
+                var prevLastPlayed = data.LastPlayedDate;
+#if DEBUG
+                BetterMarkWatchedPlugin.Instance!.Logger!.LogInformation("{0} {1} {2}", item.Id, prevLastPlayed, DateTime.UtcNow);
+#endif
                 playedToCompletion = ____userDataManager.UpdatePlayState(item, data, positionTicks.Value);
-                if (playedToCompletion && BetterMarkWatchedPlugin.Instance!.Configuration.UpdateLastPlayedAndPlayCountOnPlayCompletion)
+                if (playedToCompletion)
                 {
-                    data.PlayCount++;
-                    data.LastPlayedDate = DateTime.UtcNow;
+                    var now = DateTime.UtcNow;
+                    if (prevLastPlayed is null || now - prevLastPlayed.Value > TimeSpan.FromSeconds(4))
+                    {
+                        data.PlayCount++;
+                    }
+
+                    data.LastPlayedDate = now;
                 }
             }
             else
@@ -139,7 +154,6 @@ internal static class Patch_SessionManager_OnPlaybackStopped
         }
 
         __result = playedToCompletion;
-
         return false;
     }
 }
